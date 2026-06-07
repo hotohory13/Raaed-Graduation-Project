@@ -1,107 +1,143 @@
-# RAG PDF Extraction & Retrieval Pipeline
+# Raaed Graduation Project
 
-A production-grade pipeline for extracting content from PDF documents and building a RAG (Retrieval-Augmented Generation) system. Converts complex PDFs — with text, tables, images, formulas, and code — into clean Markdown/JSON, then chunks, embeds, and retrieves content using semantic search with reranking.
-
----
-
-## Project Structure
-
-```
-├── extraction/                  # 📦 Stage 1: PDF Extraction
-│   ├── docling_pipeline.py      #   Docling-only pipeline (fast, page-chunked)
-│   ├── local_pdf_pipeline.py    #   Multi-layer pipeline (PyMuPDF + OCR + Vision)
-│   └── merged_pipeline.py       #   Combined pipeline (Docling + fallback)
-│
-├── chunking/                    # 📦 Stage 2: Semantic Chunking
-│   └── semantic_chunker.py      #   Heading-based semantic text chunker
-│
-├── embedding/                   # 📦 Stage 3: Vector Embedding
-│   └── embedder.py              #   GTE multilingual embedding + ChromaDB
-│
-├── search/                      # 📦 Stage 4: Retrieval & Reranking
-│   └── reranked_search.py       #   Two-stage search (vector + BGE reranker)
-│
-├── config/                      # ⚙️  Configuration
-│   └── logo_hints.json          #   Logo detection heuristics
-│
-├── scripts/                     # 🛠️  Helper Scripts
-│   └── process_content.ps1      #   Batch PDF processing (PowerShell)
-│
-├── docs/                        # 📖 Documentation
-│   ├── technical_documentation.md
-│   └── embedding_guide.md
-│
-├── content/                     # 📄 Input PDFs
-│   └── *.pdf
-│
-└── data/                        # 📊 Generated Data (gitignored)
-    ├── output/                  #   Extraction outputs (Markdown, JSON, reports)
-    ├── chroma_db/               #   ChromaDB vector store
-    └── reference_logos/         #   Detected logo images
-```
+A production-grade RAG (Retrieval-Augmented Generation) pipeline for extracting content from PDF documents, processing them with semantic chunking, embedding into vector stores, and retrieving relevant content using two-stage search with reranking. Built with **FastAPI**, **MongoDB**, **ChromaDB**, and multilingual support (Arabic/English).
 
 ---
 
-## Pipeline Stages
+## 🏗️ Architecture
+
+```
+├── src/                             # 🚀 Main Application
+│   ├── main.py                      #   FastAPI entry point
+│   ├── controllers/                 #   Business logic layer
+│   │   ├── DataController.py        #     File upload & data management
+│   │   ├── NLPController.py         #     RAG search & answer generation
+│   │   ├── ProcessController.py     #     PDF processing pipeline
+│   │   └── ProjectController.py     #     Project CRUD operations
+│   ├── routes/                      #   API endpoints
+│   │   ├── base.py                  #     Health check & welcome
+│   │   ├── data.py                  #     /api/v1/data/*
+│   │   └── nlp.py                   #     /api/v1/nlp/*
+│   ├── models/                      #   Data models & DB schemas
+│   │   ├── db_schemes/              #     MongoDB document schemas
+│   │   └── enums/                   #     Enum definitions
+│   ├── stores/                      #   External service integrations
+│   │   ├── llm/                     #     LLM providers (OpenAI, Cohere, Local)
+│   │   └── vectordb/               #     Vector DB providers (ChromaDB, Qdrant)
+│   ├── extraction/                  #   PDF extraction pipelines
+│   │   ├── docling_pipeline.py      #     Docling-based extraction
+│   │   ├── local_pdf_pipeline.py    #     PyMuPDF + OCR + Vision
+│   │   └── merged_pipeline.py       #     Combined pipeline with fallback
+│   ├── chunking/                    #   Semantic text chunking
+│   ├── embedding/                   #   Vector embedding (GTE multilingual)
+│   ├── search/                      #   Two-stage retrieval + BGE reranking
+│   └── helpers/                     #   Configuration & utilities
+│
+├── pipeline_reference/              #   📖 Reference implementations & docs
+│   ├── docs/                        #     Technical documentation
+│   ├── extraction/                  #     Original extraction scripts
+│   ├── chunking/                    #     Original chunking scripts
+│   ├── embedding/                   #     Original embedding scripts
+│   └── search/                      #     Original search scripts
+│
+├── requirements.txt                 #   Python dependencies
+├── .env.example                     #   Environment variables template
+└── LICENSE                          #   AGPL-3.0 License
+```
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/Gohar-Hany/Raaed-Graduation-Project.git
+cd Raaed-Graduation-Project
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment
+
+```bash
+cp .env.example .env
+# Edit .env with your API keys and database settings
+```
+
+### 3. Start MongoDB
+
+```bash
+mongod --dbpath ./mongodb_data
+```
+
+### 4. Run the Server
+
+```bash
+cd src
+uvicorn main:app --reload --host 0.0.0.0 --port 5000
+```
+
+### 5. Access the API
+
+- **Swagger UI**: http://localhost:5000/docs
+- **Health Check**: http://localhost:5000/api/v1
+
+---
+
+## 📡 API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1` | Health check & welcome |
+| `POST` | `/api/v1/data/upload/{project_id}` | Upload PDF file |
+| `POST` | `/api/v1/data/process/{project_id}` | Process uploaded PDF (extract → chunk → embed) |
+| `GET` | `/api/v1/nlp/search/{project_id}` | Semantic search with reranking |
+| `GET` | `/api/v1/nlp/answer/{project_id}` | RAG-based question answering |
+
+---
+
+## 🔧 Pipeline Stages
 
 ### Stage 1: PDF Extraction
-Three extraction approaches, each suited for different scenarios:
+Three extraction approaches for different scenarios:
 
-| Pipeline | Best For | Command |
-|---|---|---|
-| `docling_pipeline.py` | Speed, large PDFs, validation | `python -m extraction.docling_pipeline sample.pdf` |
-| `local_pdf_pipeline.py` | Maximum content capture (images, vision) | `python -m extraction.local_pdf_pipeline sample.pdf` |
-| `merged_pipeline.py` | Best of both (Docling + fallback OCR) | `python -m extraction.merged_pipeline sample.pdf` |
+| Pipeline | Best For |
+|----------|----------|
+| **Docling** | Speed, large PDFs, structured content |
+| **Local (PyMuPDF)** | Maximum content capture (images, OCR, vision) |
+| **Merged** | Best of both with automatic fallback |
 
 ### Stage 2: Semantic Chunking
-```bash
-python -m chunking.semantic_chunker "data/output/Python Session 1.md"
-```
+Heading-based semantic text splitting with configurable chunk sizes.
 
-### Stage 3: Embedding
-```bash
-python -m embedding.embedder "data/output/Python Session 1.md"
-```
+### Stage 3: Vector Embedding
+GTE multilingual embedding model with ChromaDB or Qdrant vector storage.
 
-### Stage 4: Search
-```bash
-python -m search.reranked_search "why is Python popular?"
-```
+### Stage 4: Retrieval & Reranking
+Two-stage search: vector similarity retrieval → BGE reranker for precision.
 
 ---
 
-## Requirements
+## ⚙️ Requirements
 
-- Python 3.10+
-- Core: `pip install docling pymupdf pillow tiktoken langchain-text-splitters`
-- Embedding: `pip install chromadb sentence-transformers`
-- Optional: `pip install easyocr paddleocr ollama`
+- **Python** 3.10+
+- **MongoDB** 6.0+
+- **Dependencies**: `pip install -r requirements.txt`
 
 ### External Services (Optional)
 - **Ollama** at `http://localhost:11434` for vision/LLM features
+- **OpenAI API** or **Cohere API** for LLM-based answer generation
 - GPU recommended for faster model inference
 
 ---
 
-## Quick Start
+## 📖 Documentation
 
-```bash
-# 1. Extract PDF content
-python -m extraction.docling_pipeline "content/Math_Session_1.pdf"
-
-# 2. Chunk the output
-python -m chunking.semantic_chunker "data/output/Math_Session_1.md"
-
-# 3. Embed chunks into ChromaDB
-python -m embedding.embedder "data/output/Math_Session_1.md"
-
-# 4. Search
-python -m search.reranked_search "matrix multiplication"
-```
+- [Technical Documentation](pipeline_reference/docs/technical_documentation.md) — Full architecture, stage details, and API reference
+- [Embedding Guide](pipeline_reference/docs/embedding_guide.md) — Model choices, challenges, and implementation deep-dive
 
 ---
 
-## Documentation
+## 📄 License
 
-- [Technical Documentation](docs/technical_documentation.md) — Full architecture, stage details, and API reference
-- [Embedding Guide](docs/embedding_guide.md) — Model choices, challenges, and implementation deep-dive
+This project is licensed under the [AGPL-3.0 License](LICENSE).
