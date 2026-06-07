@@ -1,0 +1,45 @@
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+src/.env
+
+# OS/editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+
+# Generated data (outputs, embeddings, extracted assets)
+data/
+mongodb_data/
+
+# Model caches
+*.safetensors
+*.bin
+models_cache/
+
+# Database files
+*.sqlite3
+**/chroma_db/
+**/raad_chroma_db/
+
+# Logs
+*.log
+
+# Content (input PDFs - too large for git)
+content/
