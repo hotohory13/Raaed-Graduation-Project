@@ -67,11 +67,11 @@ class QdrantDBProvider(VectorDBInterface):
             return False
         
         try:
-            _ = self.client.upload_records(
+            self.client.upsert(
                 collection_name=collection_name,
-                records=[
-                    models.Record(
-                        id=[record_id],
+                points=[
+                    models.PointStruct(
+                        id=record_id,
                         vector=vector,
                         payload={
                             "text": text, "metadata": metadata
@@ -80,7 +80,7 @@ class QdrantDBProvider(VectorDBInterface):
                 ]
             )
         except Exception as e:
-            self.logger.error(f"Error while inserting batch: {e}")
+            self.logger.error(f"Error while inserting record: {e}")
             return False
 
         return True
@@ -103,8 +103,8 @@ class QdrantDBProvider(VectorDBInterface):
             batch_metadata = metadata[i:batch_end]
             batch_record_ids = record_ids[i:batch_end]
 
-            batch_records = [
-                models.Record(
+            batch_points = [
+                models.PointStruct(
                     id=batch_record_ids[x],
                     vector=batch_vectors[x],
                     payload={
@@ -116,9 +116,9 @@ class QdrantDBProvider(VectorDBInterface):
             ]
 
             try:
-                _ = self.client.upload_records(
+                self.client.upsert(
                     collection_name=collection_name,
-                    records=batch_records,
+                    points=batch_points,
                 )
             except Exception as e:
                 self.logger.error(f"Error while inserting batch: {e}")
@@ -128,20 +128,22 @@ class QdrantDBProvider(VectorDBInterface):
         
     def search_by_vector(self, collection_name: str, vector: list, limit: int = 5):
 
-        results = self.client.search(
+        if not self.is_collection_existed(collection_name):
+            return None
+
+        results = self.client.query_points(
             collection_name=collection_name,
-            query_vector=vector,
+            query=vector,
             limit=limit
         )
 
-        if not results or len(results) == 0:
+        if not results or not results.points or len(results.points) == 0:
             return None
         
         return [
             RetrievedDocument(**{
-                "score": result.score,
-                "text": result.payload["text"],
+                "score": point.score,
+                "text": point.payload["text"],
             })
-            for result in results
+            for point in results.points
         ]
-

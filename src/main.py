@@ -4,23 +4,55 @@ load_dotenv()
 os.environ["HF_HUB_OFFLINE"] = "0"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from routes import base, data, nlp
 from motor.motor_asyncio import AsyncIOMotorClient
 from helpers.config import get_settings
+from helpers.db_init import init_database
 from stores.llm.LLMProviderFactory import LLMProviderFactory
 from stores.vectordb.VectorDBProviderFactory import VectorDBProviderFactory
 from stores.llm.templates.template_parser import TemplateParser
 
 from sentence_transformers import CrossEncoder
 
-app = FastAPI()
+import logging
 
-async def startup_span():
+logger = logging.getLogger("uvicorn.error")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Modern lifespan context manager (replaces deprecated on_event).
+    Startup logic runs before `yield`, shutdown logic runs after.
+    """
     settings = get_settings()
-    app.mongo_conn = AsyncIOMotorClient(settings.MONGODB_URL)
+
+    # ── MongoDB Connection ──────────────────────────────────────────────
+    logger.info(f"[Startup] Connecting to MongoDB: {settings.MONGODB_URL[:30]}...")
+    app.mongo_conn = AsyncIOMotorClient(
+        settings.MONGODB_URL,
+        serverSelectionTimeoutMS=5000,
+    )
     app.db_client = app.mongo_conn[settings.MONGODB_DATABASE]
 
+    # Health check: fail fast with a clear message if MongoDB is unreachable
+    try:
+        await app.mongo_conn.admin.command("ping")
+        logger.info("[Startup] MongoDB connection successful ✓")
+    except Exception as e:
+        logger.error(f"[Startup] MongoDB connection FAILED: {e}")
+        logger.error(
+            "[Startup] Check MONGODB_URL in .env. "
+            "Ensure MongoDB is running and accessible."
+        )
+        raise
+
+    # Auto-create collections & indexes if they don't exist
+    await init_database(app.db_client)
+
+    # ── LLM & Embedding Clients ────────────────────────────────────────
     llm_provider_factory = LLMProviderFactory(settings)
     vectordb_provider_factory = VectorDBProviderFactory(settings)
 
@@ -48,14 +80,19 @@ async def startup_span():
         default_language=settings.DEFAULT_LANG,
     )
 
+    logger.info("[Startup] All services initialized ✓")
 
+    # ── App runs here ───────────────────────────────────────────────────
+    yield
 
-async def shutdown_span():
+    # ── Shutdown ────────────────────────────────────────────────────────
+    logger.info("[Shutdown] Closing connections...")
     app.mongo_conn.close()
     app.vectordb_client.disconnect()
+    logger.info("[Shutdown] Done ✓")
 
-app.on_event("startup")(startup_span)
-app.on_event("shutdown")(shutdown_span)
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(base.base_router)
 app.include_router(data.data_router)
