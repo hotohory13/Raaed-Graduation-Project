@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+crewai
+litellm
+langchain-groq
+openpyxl
+pandas
+python-dotenv
