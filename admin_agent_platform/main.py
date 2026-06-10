@@ -17,7 +17,7 @@ logger = logging.getLogger("AdminAgentAPI")
 # Initialize FastAPI App
 app = FastAPI(
     title="Admin Agent API",
-    description="Phase 1 Admin Agent platform backend with Excel-based shared memory.",
+    description="Phase 1 Admin Agent platform backend with Google Sheets-based shared memory.",
     version="1.0.0"
 )
 

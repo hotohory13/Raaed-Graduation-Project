@@ -2,7 +2,7 @@ import os
 import re
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process, LLM
-from excel_writer import write_task_to_excel, EXCEL_FILE
+from google_sheets_writer import write_task_to_google_sheets_func
 
 # Disable CrewAI telemetry to speed up execution and avoid connection timeouts
 os.environ["OTEL_SDK_DISABLED"] = "true"
@@ -148,8 +148,8 @@ You MUST output it as a valid JSON object matching the requested schema:
         
         if task_data:
             print(f"Extracted task data: {task_data}")
-            from excel_writer import write_task_to_excel_func
-            write_msg = write_task_to_excel_func(
+            from google_sheets_writer import write_task_to_google_sheets_func
+            write_msg = write_task_to_google_sheets_func(
                 task_type=task_data.get("task_type", "Quiz"),
                 description=task_data.get("description", ""),
                 course=task_data.get("course", "General"),
@@ -158,7 +158,7 @@ You MUST output it as a valid JSON object matching the requested schema:
                 status=task_data.get("status", "Pending"),
                 notes=task_data.get("notes", "")
             )
-            print(f"Excel write result: {write_msg}")
+            print(f"Google Sheets write result: {write_msg}")
             
             # Extract Task_ID from writing result
             match = re.search(r"T\d+", write_msg)
@@ -169,14 +169,18 @@ You MUST output it as a valid JSON object matching the requested schema:
     except Exception as e:
         print(f"Failed to parse or write structured agent output: {e}")
 
-    # Fallback: Read EXCEL_FILE to find the last added record's Task_ID
+    # Fallback: Read Google Sheet to find the last added record's Task_ID
     try:
-        import pandas as pd
-        if os.path.exists(EXCEL_FILE):
-            df = pd.read_excel(EXCEL_FILE, sheet_name="TaskQueue")
-            if not df.empty and "Task_ID" in df.columns:
-                last_task_id = str(df["Task_ID"].iloc[-1])
-                return {"task_id": last_task_id, "status": "created", "crew_output": write_msg or "Fallback used"}
+        from google_sheets_writer import get_google_sheets_service, SPREADSHEET_ID
+        service = get_google_sheets_service()
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range="Shared Memory!A:A"
+        ).execute()
+        rows = result.get("values", [])
+        if len(rows) > 1:
+            last_task_id = str(rows[-1][0])
+            return {"task_id": last_task_id, "status": "created", "crew_output": write_msg or "Fallback used"}
     except Exception as e:
         print(f"Fallback Task_ID extraction failed: {e}")
         
