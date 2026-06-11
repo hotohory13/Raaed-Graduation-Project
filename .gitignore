@@ -15,6 +15,9 @@ env/
 # Environment files
 .env
 src/.env
+admin_agent_platform/.env
+token.json
+**/token.json
 
 # OS/editor
 .DS_Store
