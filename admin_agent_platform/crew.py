@@ -11,21 +11,24 @@ os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
 # Load environment variables from .env file
 load_dotenv()
 
-# Verify Groq API Key
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY not found in environment variables. Please check your .env file.")
+# Verify OpenRouter configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_URL = os.getenv("OPENAI_API_URL", "https://openrouter.ai/api/v1")
+GENERATION_MODEL_ID = os.getenv("GENERATION_MODEL_ID", "openai/gpt-4o-mini")
 
-# Force environment variables for LiteLLM/Instructor to use Groq direct endpoint,
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY not found in environment variables. Please check your .env file.")
+
+# Force environment variables for LiteLLM/Instructor to use OpenRouter endpoint,
 # overriding any global AgentRouter environment variables that cause AuthenticationErrors.
-os.environ["OPENAI_API_KEY"] = GROQ_API_KEY
-os.environ["OPENAI_API_BASE"] = "https://api.groq.com/openai/v1"
-os.environ["OPENAI_BASE_URL"] = "https://api.groq.com/openai/v1"
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+os.environ["OPENAI_API_BASE"] = OPENAI_API_URL
+os.environ["OPENAI_BASE_URL"] = OPENAI_API_URL
 
-class GroqLLM(LLM):
+class OpenRouterLLM(LLM):
     """
-    Custom LLM wrapper for Groq to strip out unsupported 'cache_breakpoint' keys
-    inserted by CrewAI before passing messages to LiteLLM/Groq.
+    Custom LLM wrapper for OpenRouter to strip out unsupported 'cache_breakpoint' keys
+    inserted by CrewAI before passing messages to LiteLLM/OpenRouter.
     """
     def _format_messages_for_provider(self, messages):
         formatted = super()._format_messages_for_provider(messages)
@@ -50,19 +53,17 @@ def run_admin_crew(user_request: str) -> dict:
     """
     Executes the Admin Crew to process the user request, 
     extract parameters as structured JSON, and then writes the
-    record to tasks.xlsx deterministically in python.
+    record to Google Sheets deterministically in python.
     """
-    # Initialize the Groq LLM using OpenAI adapter format for compatibility (bypasses caching issues)
-    model_name = os.getenv("GROQ_MODEL_NAME", "llama-3.1-8b-instant")
-    if model_name.startswith("groq/"):
-        model_name = model_name.replace("groq/", "openai/")
-    elif not model_name.startswith("openai/"):
-        model_name = f"openai/{model_name}"
+    # Initialize the OpenRouter LLM
+    model_name = GENERATION_MODEL_ID
+    if not model_name.startswith("openrouter/"):
+        model_name = f"openrouter/{model_name}"
 
-    llm = GroqLLM(
+    llm = OpenRouterLLM(
         model=model_name,
-        base_url="https://api.groq.com/openai/v1",
-        api_key=GROQ_API_KEY,
+        base_url=OPENAI_API_URL,
+        api_key=OPENAI_API_KEY,
         temperature=0.1
     )
 

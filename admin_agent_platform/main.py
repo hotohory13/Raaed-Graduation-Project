@@ -38,12 +38,12 @@ class TaskCreateResponse(BaseModel):
     "/task/create",
     response_model=TaskCreateResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new task and queue it in Excel memory"
+    summary="Create a new task and queue it in Google Sheets memory"
 )
 def create_task(payload: TaskCreateRequest):
     """
     Receives a natural language request, extracts task parameters using a CrewAI Agent,
-    writes the structured task record to Excel (tasks.xlsx), and returns the generated task ID.
+    writes the structured task record to Google Sheets, and returns the generated task ID.
     """
     logger.info(f"Received task creation request: '{payload.request}'")
     try:

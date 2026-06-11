@@ -13,8 +13,8 @@ from crew import run_admin_crew
 def main():
     print("==================================================")
     print("Testing Admin Crew workflow directly...")
-    print(f"GROQ_API_KEY is configured: {bool(os.getenv('GROQ_API_KEY'))}")
-    print(f"GROQ_MODEL_NAME: {os.getenv('GROQ_MODEL_NAME')}")
+    print(f"OPENAI_API_KEY is configured: {bool(os.getenv('OPENAI_API_KEY'))}")
+    print(f"GENERATION_MODEL_ID: {os.getenv('GENERATION_MODEL_ID')}")
     print("==================================================")
     
     test_requests = [
