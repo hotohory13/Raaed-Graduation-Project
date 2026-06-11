@@ -139,7 +139,11 @@ class NLPController(BaseController):
             )
         ]
 
-        full_prompt = "\n\n".join([ documents_prompts,  footer_prompt])
+        query_prompt = f"User Query: {query}"
+        if self.template_parser and self.template_parser.language == "ar":
+            query_prompt = f"سؤال المستخدم: {query}"
+
+        full_prompt = "\n\n".join([ documents_prompts, query_prompt, footer_prompt])
 
         # step4: Retrieve the Answer
         answer = self.generation_client.generate_text(

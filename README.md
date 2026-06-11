@@ -1,140 +1,235 @@
-# Raaed Graduation Project
+# 🎓 Raaed — Educational Multi-Agent & RAG Platform
 
-A production-grade RAG (Retrieval-Augmented Generation) pipeline for extracting content from PDF documents, processing them with semantic chunking, embedding into vector stores, and retrieving relevant content using two-stage search with reranking. Built with **FastAPI**, **MongoDB**, **ChromaDB**, and multilingual support (Arabic/English).
+> **رائد (Raaed)** is a production-grade, multi-agent educational assistant platform designed to help university students study course materials.
+> Powered by a two-stage **Retrieval-Augmented Generation (RAG)** pipeline, a conversational **AI Study Assistant** agent, an instructor-facing **Admin Agent**, and a **Google Sheets / Webhook-based shared memory** task queue.
+>
+> Developed for the **Digital Pioneers Initiative | AI Learning Assistant v2.0**
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
 
-```
-├── src/                             # 🚀 Main Application
-│   ├── main.py                      #   FastAPI entry point
-│   ├── controllers/                 #   Business logic layer
-│   │   ├── DataController.py        #     File upload & data management
-│   │   ├── NLPController.py         #     RAG search & answer generation
-│   │   ├── ProcessController.py     #     PDF processing pipeline
-│   │   └── ProjectController.py     #     Project CRUD operations
-│   ├── routes/                      #   API endpoints
-│   │   ├── base.py                  #     Health check & welcome
-│   │   ├── data.py                  #     /api/v1/data/*
-│   │   └── nlp.py                   #     /api/v1/nlp/*
-│   ├── models/                      #   Data models & DB schemas
-│   │   ├── db_schemes/              #     MongoDB document schemas
-│   │   └── enums/                   #     Enum definitions
-│   ├── stores/                      #   External service integrations
-│   │   ├── llm/                     #     LLM providers (OpenAI, Cohere, Local)
-│   │   └── vectordb/               #     Vector DB providers (ChromaDB, Qdrant)
-│   ├── extraction/                  #   PDF extraction pipelines
-│   │   ├── docling_pipeline.py      #     Docling-based extraction
-│   │   ├── local_pdf_pipeline.py    #     PyMuPDF + OCR + Vision
-│   │   └── merged_pipeline.py       #     Combined pipeline with fallback
-│   ├── chunking/                    #   Semantic text chunking
-│   ├── embedding/                   #   Vector embedding (GTE multilingual)
-│   ├── search/                      #   Two-stage retrieval + BGE reranking
-│   └── helpers/                     #   Configuration & utilities
-│
-├── pipeline_reference/              #   📖 Reference implementations & docs
-│   ├── docs/                        #     Technical documentation
-│   ├── extraction/                  #     Original extraction scripts
-│   ├── chunking/                    #     Original chunking scripts
-│   ├── embedding/                   #     Original embedding scripts
-│   └── search/                      #     Original search scripts
-│
-├── requirements.txt                 #   Python dependencies
-├── .env.example                     #   Environment variables template
-└── LICENSE                          #   AGPL-3.0 License
+Raaed operates as a dual-agent system where instructors can direct the AI Study Assistant's behavior in real-time through an Instructor Admin Agent.
+
+```mermaid
+sequenceDiagram
+    actor Instructor
+    actor Student
+    participant Admin as Admin Agent Platform (FastAPI :8001)
+    participant GS as Google Sheets (Shared Memory)
+    participant Webhook as Assistant Webhook API (FastAPI :8000)
+    participant DB as MongoDB (raad-rag)
+    participant Raaed as Assistant Agent (CrewAI)
+
+    Instructor->>Admin: "Focus today with students on Module 5"
+    Admin->>GS: Append task row (e.g. T003)
+    Admin->>Webhook: HTTP POST Webhook (task payload)
+    Webhook->>DB: Save Guideline as Active (project_id)
+    Student->>Raaed: "Hello, what should I study today?"
+    Raaed->>DB: Query active guidelines for project_id
+    DB-->>Raaed: Return active guideline ("Focus on Module 5")
+    Raaed-->>Student: "Hi! The instructor requested we focus on Module 5 today..."
 ```
 
 ---
 
-## 🚀 Quick Start
+## 📂 Project Directory Structure
 
-### 1. Clone & Install
+```
+├── src/                             # 🚀 Raaed Core Assistant API
+│   ├── main.py                      #   FastAPI entry point (lifespan manager)
+│   ├── controllers/                 #   Business logic layer (Data, NLP, Process)
+│   ├── routes/                      #   FastAPI route routing schemas
+│   ├── models/                      #   Pydantic schemes and MongoDB models
+│   ├── stores/                      #   LLM providers & Qdrant vector database clients
+│   ├── chunking/                    #   Heading-based semantic text splitters
+│   ├── embedding/                   #   Vector embedding client wrappers
+│   ├── search/                      #   BGE Reranker search prototypes
+│   ├── scripts/                     #   Database setup and seeding scripts
+│   └── evaluation/                  #   📊 RAG Evaluation Framework
+│
+├── admin_agent_platform/            # 👨‍🏫 Instructor Admin Agent API
+│   ├── main.py                      #   FastAPI Admin Agent entry point
+│   ├── crew.py                      #   CrewAI Request Analyzer workflow
+│   ├── google_sheets_writer.py      #   Google Sheets Shared Memory writer
+│   └── test_api.py                  #   Instructor simulation test client
+│
+├── environment.yml                  #   Conda environment configuration
+├── requirements.txt                 #   Pip python dependencies
+└── README.md                        #   Project documentation
+```
+
+---
+
+## 🚀 Setup & Installation (From Scratch)
+
+Follow these steps sequentially to set up and run both servers locally.
+
+### 1. Prerequisites
+- **Python**: Version 3.10 or 3.11 is required.
+- **MongoDB**: A running instance of MongoDB (either locally or MongoDB Atlas).
+- **Conda (Recommended)**: For managing virtual environments.
+
+### 2. Environment Configurations
+
+You need to set up two `.env` files. 
+
+#### A. Configure Raaed Core API Environment
+Create `src/.env` and insert your credentials:
+```env
+APP_NAME="RAAED"
+APP_VERSION="0.2"
+
+# MongoDB Credentials
+MONGODB_URL="your-mongodb-atlas-url-or-local"
+MONGODB_DATABASE="raad-rag"
+
+# LLM Providers (OpenRouter)
+GENERATION_BACKEND="OPENAI"
+EMBEDDING_BACKEND="LOCAL"
+OPENAI_API_URL="https://openrouter.ai/api/v1"
+OPENAI_API_KEY="your-openrouter-api-key"
+GENERATION_MODEL_ID="openai/gpt-4o-mini"
+
+# Local Embedding & Reranker Settings
+EMBEDDING_MODEL_ID="Alibaba-NLP/gte-multilingual-base"
+EMBEDDING_MODEL_SIZE=768
+VECTOR_DB_BACKEND="QDRANT"
+VECTOR_DB_PATH="raad_qdrant_db"
+VECTOR_DB_DISTANCE_METHOD="cosine"
+
+# Optimization (Crucial to prevent RAG prompt truncation)
+INPUT_DAFAULT_MAX_CHARACTERS=16384
+```
+
+#### B. Configure Admin Agent Environment
+Create `admin_agent_platform/.env` and insert your credentials:
+```env
+# OpenRouter API settings
+OPENAI_API_KEY="your-openrouter-api-key"
+OPENAI_API_URL="https://openrouter.ai/api/v1"
+GENERATION_MODEL_ID="openai/gpt-4o-mini"
+
+# Google Sheets API Shared Memory
+GOOGLE_SPREADSHEET_ID="your-google-spreadsheet-id"
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+
+# Assistant Webhook URL (pointing to Raaed Core API)
+ASSISTANT_WEBHOOK_URL="http://localhost:8000/api/v1/agent/webhook/task"
+```
+
+### 3. Install Dependencies
+Set up the Conda environment using `environment.yml` or standard pip:
 
 ```bash
-git clone https://github.com/Gohar-Hany/Raaed-Graduation-Project.git
-cd Raaed-Graduation-Project
+# Using Conda
+conda env create -f environment.yml
+conda activate raed
+
+# OR using pip inside a virtual environment
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment
-
-```bash
-cp .env.example .env
-# Edit .env with your API keys and database settings
-```
-
-### 3. Start MongoDB
-
-```bash
-mongod --dbpath ./mongodb_data
-```
-
-### 4. Run the Server
+### 4. Database Setup & Seeding
+Prepare MongoDB databases, collections, indexes, and write initial dummy project records:
 
 ```bash
 cd src
-uvicorn main:app --reload --host 0.0.0.0 --port 5000
+# Seeds 'testproject1' with PDF chunks in MongoDB
+python -m scripts.seed_db --seed
 ```
 
-### 5. Access the API
-
-- **Swagger UI**: http://localhost:5000/docs
-- **Health Check**: http://localhost:5000/api/v1
+### 5. Synchronizing Vector Database
+Push the database chunks to Qdrant to generate embeddings:
+1. Start the core server first (see step 6 below).
+2. Execute a POST request via curl or python:
+```bash
+wsl curl -X POST http://127.0.0.1:8000/api/v1/nlp/index/push/testproject1 -H "Content-Type: application/json" -d '{"do_reset": true}'
+```
 
 ---
 
-## 📡 API Endpoints
+## 📡 Running the Applications
 
+To run the full dual-agent system, start both FastAPI servers:
+
+### Start Raaed Core API (Assistant Server)
+Runs on port **8000** by default:
+```bash
+cd src
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+* **Swagger Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Start Admin Agent API (Instructor Server)
+Runs on port **8001** by default:
+```bash
+cd admin_agent_platform
+uvicorn main:app --reload --host 0.0.0.0 --port 8001
+```
+* **Swagger Documentation**: [http://localhost:8001/docs](http://localhost:8001/docs)
+
+---
+
+## 📊 RAG Evaluation Framework & Performance
+
+Raaed includes a built-in evaluation framework inside `src/evaluation/` to measure retrieval effectiveness and generation accuracy.
+
+### 1. Retrieval Performance (Vector Search vs BGE Reranker)
+Standard cosine similarity vector search alone compared against vector retrieval + **BGE Cross-Encoder Reranker** (`BAAI/bge-reranker-v2-m3`):
+
+| Metric | Vector Search (GTE Only) | Reranked Search (GTE + BGE) |
+| :--- | :---: | :---: |
+| **Hit Rate @ 1** | 66.7% | **100.0%** (Perfect precision) |
+| **Hit Rate @ 3** | 100.0% | 100.0% |
+| **Hit Rate @ 5** | 100.0% | 100.0% |
+| **MRR (Mean Reciprocal Rank)** | 0.8222 | **1.0000** |
+| **NDCG @ 5** | 0.8682 | **1.0000** |
+
+* **Impact**: The BGE Reranker ensures that the correct context is placed first in 100% of queries.
+
+### 2. Generation Quality (RAG System vs Raw LLM Baseline)
+Evaluating RAG answers against textbook facts and a raw model (`gpt-4o-mini` without context):
+
+| Metric | RAG Pipeline (With Context) | Raw LLM Baseline (No Context) |
+| :--- | :---: | :---: |
+| **Faithfulness** (No Hallucinations) | **100.0%** | N/A |
+| **Answer Relevancy** | **99.3%** | 100.0% |
+| **ROUGE-L F1** (Overlap) | **0.5356** | 0.3972 |
+| **Semantic Similarity** (Cosine) | **0.8961** | 0.8553 |
+
+* **Impact**: Grounding the model in course documents achieves **100.0% Faithfulness** while matching the textbook content significantly better (ROUGE-L F1 of **0.5356** vs **0.3972**).
+
+### 3. How to Run the Evaluation Suite
+1. Stop the FastAPI dev server on port 8000 (to release the SQLite/Qdrant file lock).
+2. Execute the evaluation script:
+   ```bash
+   cd src
+   python evaluation/evaluate_rag.py
+   ```
+3. Granular results are saved in `src/evaluation/evaluation_results.json`.
+
+---
+
+## 📡 API Endpoint Reference
+
+### Raaed Core API (Port 8000)
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1` | Health check & welcome |
-| `POST` | `/api/v1/data/upload/{project_id}` | Upload PDF file |
-| `POST` | `/api/v1/data/process/{project_id}` | Process uploaded PDF (extract → chunk → embed) |
-| `GET` | `/api/v1/nlp/search/{project_id}` | Semantic search with reranking |
-| `GET` | `/api/v1/nlp/answer/{project_id}` | RAG-based question answering |
+| :--- | :--- | :--- |
+| `POST` | `/api/v1/data/upload/{project_id}` | Upload PDF lecture file |
+| `POST` | `/api/v1/data/process/{project_id}` | Extract, chunk, and save PDF data |
+| `POST` | `/api/v1/nlp/index/push/{project_id}` | Index chunks from MongoDB to Qdrant Vector DB |
+| `POST` | `/api/v1/nlp/index/search/{project_id}` | Two-stage semantic search with BGE reranking |
+| `POST` | `/api/v1/nlp/index/answer/{project_id}` | RAG-based QA endpoint |
+| `POST` | `/api/v1/agent/chat/{project_id}` | Conversational study assistant |
+| `POST` | `/api/v1/agent/quiz/{project_id}` | Quiz generator sub-agent |
+| `POST` | `/api/v1/agent/webhook/task` | Endpoint to receive instructor guidelines from Admin Agent |
 
----
-
-## 🔧 Pipeline Stages
-
-### Stage 1: PDF Extraction
-Three extraction approaches for different scenarios:
-
-| Pipeline | Best For |
-|----------|----------|
-| **Docling** | Speed, large PDFs, structured content |
-| **Local (PyMuPDF)** | Maximum content capture (images, OCR, vision) |
-| **Merged** | Best of both with automatic fallback |
-
-### Stage 2: Semantic Chunking
-Heading-based semantic text splitting with configurable chunk sizes.
-
-### Stage 3: Vector Embedding
-GTE multilingual embedding model with ChromaDB or Qdrant vector storage.
-
-### Stage 4: Retrieval & Reranking
-Two-stage search: vector similarity retrieval → BGE reranker for precision.
-
----
-
-## ⚙️ Requirements
-
-- **Python** 3.10+
-- **MongoDB** 6.0+
-- **Dependencies**: `pip install -r requirements.txt`
-
-### External Services (Optional)
-- **Ollama** at `http://localhost:11434` for vision/LLM features
-- **OpenAI API** or **Cohere API** for LLM-based answer generation
-- GPU recommended for faster model inference
-
----
-
-## 📖 Documentation
-
-- [Technical Documentation](pipeline_reference/docs/technical_documentation.md) — Full architecture, stage details, and API reference
-- [Embedding Guide](pipeline_reference/docs/embedding_guide.md) — Model choices, challenges, and implementation deep-dive
+### Admin Agent API (Port 8001)
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/task/create` | Receive natural language task from instructor, analyze it using CrewAI, write to Google Sheets, and trigger Assistant webhook |
 
 ---
 

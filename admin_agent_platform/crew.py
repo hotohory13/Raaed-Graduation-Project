@@ -165,7 +165,29 @@ You MUST output it as a valid JSON object matching the requested schema:
             match = re.search(r"T\d+", write_msg)
             if match:
                 task_id = match.group(0)
+                
+                # Trigger assistant webhook
+                try:
+                    import requests
+                    import datetime
+                    webhook_url = os.getenv("ASSISTANT_WEBHOOK_URL", "http://localhost:8000/api/v1/agent/webhook/task")
+                    print(f"Sending webhook notification to Assistant Agent at {webhook_url}...")
+                    webhook_payload = {
+                        "task_id": task_id,
+                        "description": task_data.get("description", ""),
+                        "course": task_data.get("course", "General"),
+                        "task_type": task_data.get("task_type", "Quiz"),
+                        "priority": task_data.get("priority", "High"),
+                        "notes": task_data.get("notes", ""),
+                        "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    res = requests.post(webhook_url, json=webhook_payload, timeout=5)
+                    print(f"Webhook notification result: {res.status_code} - {res.text}")
+                except Exception as wh_err:
+                    print(f"Warning: Failed to send webhook notification to Assistant: {wh_err}")
+                
                 return {"task_id": task_id, "status": "created", "crew_output": write_msg}
+
                 
     except Exception as e:
         print(f"Failed to parse or write structured agent output: {e}")
